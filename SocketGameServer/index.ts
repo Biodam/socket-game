@@ -8,11 +8,15 @@ const dev: boolean = process.env.NODE_ENV !== 'production';
 const app: Express = express();
 const server: http.Server = http.createServer(app);
 const io: socketio.Server = new socketio.Server();
+
+//Game stuff
+let playerPosition = { x: 0, z: 0 }
+
 io.attach(server, {
     cors: {
         origin: `http://localhost:${port}`,
         methods: ["GET", "POST"],
-        allowedHeaders: ["my-custom-header","Access-Control-Allow-Origin"],
+        allowedHeaders: ["my-custom-header", "Access-Control-Allow-Origin"],
         credentials: true
     }
 });
@@ -32,9 +36,18 @@ io.on('connection', (socket: socketio.Socket) => {
 
     socket.on('disconnect', () => {
         console.log('client disconnected');
-    })
+    });
+
+    socket.on("player-input", (arg) => {
+        console.log(arg); // world
+        playerPosition.x += arg.horizontal;
+        playerPosition.z += arg.vertical;
+        console.log(playerPosition);
+        socket.emit("player-position", playerPosition);
+    });
 });
 
 server.listen(port, () => {
     console.log(`> Ready on http://localhost:${port}`);
 });
+
