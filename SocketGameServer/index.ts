@@ -1,3 +1,4 @@
+import e from 'express';
 import express, { Express, Request, Response } from 'express';
 import * as http from 'http';
 import * as socketio from 'socket.io';
@@ -10,7 +11,11 @@ const server: http.Server = http.createServer(app);
 const io: socketio.Server = new socketio.Server();
 
 //Game stuff
-let playerPosition = { x: 0, z: 0 }
+class Player{    
+    public x= 0;
+    public z= 0;
+}
+let players = new Map<string,Player>();
 
 io.attach(server, {
     cors: {
@@ -32,18 +37,27 @@ app.get('/hello', async (_: Request, res: Response) => {
 
 io.on('connection', (socket: socketio.Socket) => {
     console.log('connection');
+    players.set(socket.id, new Player());
     socket.emit('status', 'Hello from Socket.io');
 
     socket.on('disconnect', () => {
         console.log('client disconnected');
+        players.delete(socket.id);
     });
 
     socket.on("player-input", (arg) => {
         console.log(arg); // world
-        playerPosition.x += arg.horizontal;
-        playerPosition.z += arg.vertical;
-        console.log(playerPosition);
-        socket.emit("player-position", playerPosition);
+        let player = players.get(socket.id);
+        if(player!=undefined)
+        {
+            player.x += arg.horizontal;
+            player.z += arg.vertical;
+            console.log(`${socket.id}:${player}`);
+            socket.emit("player-position", player);
+        }
+        else{
+            console.log(`Could not find player for socket: ${socket.id}`);
+        }
     });
 });
 

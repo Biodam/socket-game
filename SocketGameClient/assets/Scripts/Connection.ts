@@ -48,7 +48,7 @@ export class Connection extends Component {
             }
             console.log(this.node.position);
             console.log(this.node.name);
-            this.node.setPosition(position.x, 0, position.z);
+            this.node.setPosition(position.x, this.node.getPosition().y, position.z);
         });
 
         //Input register of events        
