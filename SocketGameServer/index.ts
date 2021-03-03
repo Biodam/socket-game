@@ -18,6 +18,10 @@ io.attach(server, {
 });
 //https://socket.io/docs/v3/handling-cors/
 
+app.get('/', async (_: Request, res: Response) => {
+    res.send('Server is running...')
+});
+
 app.get('/hello', async (_: Request, res: Response) => {
     res.send('Hello World')
 });
