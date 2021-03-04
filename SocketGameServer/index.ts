@@ -52,7 +52,7 @@ io.on('connection', (socket: socketio.Socket) => {
         {
             player.x += arg.horizontal;
             player.z += arg.vertical;
-            console.log(`${socket.id}:${player}`);
+            console.log(`${socket.id}:${JSON.stringify(player)}`);
             socket.emit("player-position", player);
         }
         else{
