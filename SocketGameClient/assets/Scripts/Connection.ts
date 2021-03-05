@@ -1,32 +1,25 @@
-
-import { _decorator, Component, Node, SystemEvent, systemEvent, EventKeyboard, JsonAsset, WorldNode3DToLocalNodeUI } from 'cc';
-import { io } from 'socket.io-client/dist/socket.io.js';
+import { _decorator, Component, Node, SystemEvent, director, systemEvent, EventKeyboard, Prefab, instantiate } from 'cc';
+import io from 'socket.io-client/dist/socket.io.js';
+import { LocalPlayer } from './LocalPlayer';
+import { Player } from './Player';
 const { ccclass, property } = _decorator;
 
 @ccclass('Connection')
 export class Connection extends Component {
 
-    private horizontal = 0;
-    private vertical = 0;
+    @property({ type: Prefab })
+    private prefabPlayer!: Prefab;
 
-    //Keyboard constants ASCII key codes
-    private _keyW = 87;
-    private _keyS = 83;
-    private _keyD = 68;
-    private _keyA = 65;
-    private _keyArrowUp = 38;
-    private _keyArrowDown = 40;
-    private _keyArrowRight = 39;
-    private _keyArrowLeft = 37;
-    private _keySpace = 32;
+    private socket!: Socket;
 
-    private socket: any;
+    private players = new Array<Player>();
+    private localPlayer!: Player;
 
     start() {
         // Client-side connection initialization
         console.log("Starting connection to socket.io server");
 
-        this.socket = io("http://localhost:3000",
+        this.socket = io('http://localhost:3000',
             {
                 withCredentials: true,
                 extraHeaders: {
@@ -35,57 +28,86 @@ export class Connection extends Component {
                 transports: ['websocket', 'polling', 'flashsocket']
             });
 
-        //Socket register of events
-        this.socket.on("connect", () => {
-            console.log(`Socket.ID: ${this.socket.id}`);
-        });
+        if (this.socket != undefined) {
+            //Socket register of events
+            this.socket.on("connect", () => {
+                console.log(`Socket.ID: ${this.socket.id}`);
+                //Instantiate local player
+                this.localPlayer = this.addPlayer(this.socket.id);
+                if (this.localPlayer != null) {
+                    let lp = this.localPlayer.addComponent(LocalPlayer);
+                    lp?.init(this.socket);
+                }
+            });
 
-        this.socket.on("player-position", (position: any) => {
-            console.log(position);
-            if (position == null) {
-                console.log("Position received is null");
-                return;
+            this.socket.on("player-connect", (id: string) => {
+                if (Array.isArray(id))
+                    id = id[0];
+                if (id != this.socket.id) {
+                    //Instantiate remote player
+                    this.addPlayer(id);
+                }
+            });
+
+            this.socket.on("player-disconnect", (id: string) => {
+                if (Array.isArray(id))
+                    id = id[0];
+                //Destroy instance of remote player
+                if (id != this.socket.id) {
+                    console.log(`player ${id} disconnected`);
+                    this.removePlayer(id);
+                }
+            });
+
+            this.socket.on("game-state-update", (gameState: any) => {
+                if (Array.isArray(gameState))
+                    gameState = gameState[0];
+                //Update all player states based on game state received
+                this.updateGameState(gameState);
+            });
+        }
+    }
+
+    updateGameState(gameState: any) {
+        //console.log(JSON.stringify(gameState));
+
+        gameState.playersStates.forEach(ps => {
+            let found = this.players.find((p) => p.id == ps.id);
+            if (found) {
+                found.updateState(ps);
+            } else {
+                console.log(`could not find player ${ps.id}`)
             }
-            console.log(this.node.position);
-            console.log(this.node.name);
-            this.node.setPosition(position.x, this.node.getPosition().y, position.z);
         });
-
-        //Input register of events        
-        systemEvent.on(SystemEvent.EventType.KEY_DOWN, this.onKeyDown, this);
-        systemEvent.on(SystemEvent.EventType.KEY_UP, this.onKeyUp, this);
     }
 
-    onKeyDown(event: EventKeyboard) {
-
-        //Handle vertical keyboard input
-        if (event.keyCode == this._keyW || event.keyCode == this._keyArrowUp)
-            this.vertical = 1;
-        else if (event.keyCode == this._keyS || event.keyCode == this._keyArrowDown)
-            this.vertical = -1;
-
-        //Handle horizontal keyboard input
-        if (event.keyCode == this._keyD || event.keyCode == this._keyArrowRight)
-            this.horizontal = 1;
-        else if (event.keyCode == this._keyA || event.keyCode == this._keyArrowLeft)
-            this.horizontal = -1;
-
-        //if(event.keyCode == this._keySpace)
-
-        this.sendInputToServer();
+    addPlayer(id: string): Player | null {
+        console.log(`adding player ${id}`);
+        console.log(`player count: ${this.players.length}`);
+        console.log([...this.players.keys()]);
+        let scene = director.getScene();
+        let instance = instantiate(this.prefabPlayer);
+        instance.setParent(scene);
+        let player = instance.getComponent(Player);
+        if (player != null) {
+            player.init(id);
+            this.players.push(player);
+        }
+        else
+            console.log("Could not add player to map");
+        console.log(`player count: ${this.players.length}`);
+        console.log([...this.players.keys()]);
+        return player;
     }
 
-    onKeyUp(event: EventKeyboard) {
-        if (event.keyCode == this._keyW || event.keyCode == this._keyArrowUp || event.keyCode == this._keyS || event.keyCode == this._keyArrowDown)
-            this.vertical = 0;
-
-        if (event.keyCode == this._keyD || event.keyCode == this._keyArrowRight || event.keyCode == this._keyA || event.keyCode == this._keyArrowLeft)
-            this.horizontal = 0;
-
-        this.sendInputToServer();
-    }
-
-    sendInputToServer() {
-        this.socket.emit("player-input", { horizontal: this.horizontal, vertical: this.vertical });
+    removePlayer(id: string) {
+        console.log(`removePlayer start - player count: ${this.players.length} ${[...this.players.keys()]}`);
+        let found = this.players.find((p) => p.id == id);
+        if (found) {
+            let foundIndex = this.players.indexOf(found);
+            this.players.splice(foundIndex,1);
+            found.node.destroy();            
+        }
+        console.log(`removePlayer end - player count: ${this.players.length} ${[...this.players.keys()]}`);
     }
 }
