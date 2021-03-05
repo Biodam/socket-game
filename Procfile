@@ -1,0 +1,1 @@
+start cd .\SocketGameServer\ && npm install && npm start
