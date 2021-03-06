@@ -1,5 +1,6 @@
 {
     "scripts": {
-        "start": "cd ./SocketGameServer/ && npm install && npm start"
+        "heroku-prebuild": "cd ./SocketGameServer/ && npm install",
+        "start": "cd ./SocketGameServer/ && npm start"
     }
 }
